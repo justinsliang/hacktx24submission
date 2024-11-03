@@ -1,87 +1,70 @@
-""" import ollama
-response = ollama.chat(model='llama3.2', messages=[
-  {
-    'role': 'user',
-    'content': 'Why is the sky blue?',
-  },
-])
-print(response['message']['content']) """
+import ollama
+from Whisper import record_audio, transcribe_audio
+from pyAudioAnalysis import audioBasicIO as aIO
+from pyAudioAnalysis import audioSegmentation as aS
+from pydub import AudioSegment
 
 
-
-
- 
-from Whisper import record_audio
-from Whisper import transcribe_audio
-
+# Step 1: Record and Transcribe Audio
 def whisper():
     # Set the duration of the recording in seconds
-    duration = 5  # Adjust this as needed
+    duration = 60  # Adjust this as needed
 
-    # Step 1: Record from the microphone and get the .wav file name
+    # Record from the microphone and get the .wav file name
     audio_file = record_audio(duration)
 
-    # Step 2: Transcribe the recorded audio and get the .txt file name
+    # Transcribe the recorded audio and get the .txt file name
     transcription_file = transcribe_audio(audio_file)
 
-    # Step 3: Print the file names (for reference)
+    # Print the file names for reference
     print("Audio file:", audio_file)
     print("Transcription file:", transcription_file)
     return audio_file, transcription_file
 
 audio_transc = whisper()
-
 audiowav = audio_transc[0]
 transcFilename = audio_transc[1]
 
-
-
-
-
-# return proportion of duration that is silent
-from pyAudioAnalysis import audioBasicIO as aIO
-from pyAudioAnalysis import audioSegmentation as aS
-
+# Step 2: Analyze Silence in the Audio for Percent Silence
 def percent_silent(wavfile):
-    [Fs, x] = aIO.read_audio_file(wavfile)                                                                      # Fs = sampling frequency/rate; x = signal (numpy array)
-    soundseg = aS.silence_removal(x, Fs, 0.020, 0.020, smooth_window = 1.0, weight = 0.7, plot = False)          # returns list of lists, ie list of segments of sound (ea segment element is a list with segment beginning and segment end)
-    
-    duration = soundseg[len(soundseg)-1][1]
-    print(duration)                                         # 18.06 s
+    [Fs, x] = aIO.read_audio_file(wavfile)
+    soundseg = aS.silence_removal(x, Fs, 0.020, 0.020, smooth_window=1.0, weight=0.7, plot=False)
 
-    speechseconds = 0
-    for seg in soundseg:
-        speechseconds += seg[1] - seg[0]
-    print(speechseconds)                                    # 5.98 s
+    duration = soundseg[-1][1]
+    print(f"Speech duration: {duration}")
+
+    speechseconds = sum(seg[1] - seg[0] for seg in soundseg)
+    print(f"Spoke for {speechseconds} seconds")
 
     silentseconds = duration - speechseconds
-    print(silentseconds)                                    # 12.08 s
+    print(f"Silent for {silentseconds} seconds")
 
-    print(silentseconds/duration)                           # 0.67
-    return silentseconds/duration
-    
-percent_silent(audiowav)
+    percent_silent = (silentseconds / duration) * 100
+    print(f"Silent {percent_silent}% of response.")
+    return percent_silent
 
-
-
+silence_percentage = percent_silent(audiowav)
 
 
-# !! not yet tested with Whisper
-from pydub import AudioSegment
-
-def wpm(audio, transcription):                                     # audio is .wav file; transcription is string name for transcription
+# Step 3: Calculate Words Per Minute (WPM)
+def wpm(audio, transcription):
     audiofile = AudioSegment.from_file(audio)
     ms = len(audiofile)
-    sec = AudioSegment.duration_seconds(ms)
-    min = sec // 60
+    sec = ms / 1000
+    minutes = sec / 60
 
-    transcript = open(transcription, "r")
-    text = transcript.read()
-    numwords = len(text.split())
-    transcript.close()
+    with open(transcription, "r") as transcript:
+        text = transcript.read()
+        numwords = len(text.split())
 
-    return numwords/min
+    wpm_value = numwords / minutes if minutes > 0 else 0
+    print(f"WPM: {wpm_value}")
+    return wpm_value
 
+wpm_value = wpm(audiowav, transcFilename)
+
+
+# Step 4: Determine Speaking Speed Quality
 def rel_speed(wpm):
     if wpm < 120:
         return "slow"
@@ -89,6 +72,34 @@ def rel_speed(wpm):
         return "average"
     else:
         return "fast"
+
+speed_quality = rel_speed(wpm_value)
+
+
+# Step 5: Use Ollama to Provide Feedback and Generate Questions
+def ollama_feedback_and_questions(wpm_value, speed_quality, transcription_file, job_role):
+    # Read transcription text for analysis
+    with open(transcription_file, "r") as f:
+        transcription_text = f.read()
     
-wpm = wpm(audiowav, transcFilename)
-print(rel_speed(wpm))
+    # Craft the prompt for Ollama based on user's WPM and transcription
+    prompt = (
+        f"The user spoke at a rate of {wpm_value:.2f} words per minute, which is considered '{speed_quality}' speed.\n"
+        f"The transcription of their response is:\n\n\"{transcription_text}\"\n\n"
+        f"Based on this transcription, please provide feedback on their speaking speed and the quality of their message. "
+        f"Additionally, the user is interested in practicing for an interview for a {job_role} role. "
+        f"Please generate 3-5 relevant interview questions for this role."
+    )
+
+    # Use Ollama API to generate the response
+    response = ollama.chat(model='llama3.2', messages=[
+        {'role': 'user', 'content': prompt}
+    ])
+    
+    # Display feedback and interview questions
+    print("Ollama's Feedback and Suggested Interview Questions:")
+    print(response['message']['content'])
+
+# Example job role for demonstration
+job_role = "data analyst"  # Adjust as needed based on user request
+ollama_feedback_and_questions(wpm_value, speed_quality, transcFilename, job_role)
