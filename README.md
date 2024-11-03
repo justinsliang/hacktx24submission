@@ -9,7 +9,7 @@ To install, follow these steps:
 
 3) git clone https://github.com/tyiannak/pyAudioAnalysis.git
 
-4) pip install -r requirements for pyAudioAnalysis in its directory
+4) pip install -r requirements for pyAudioAnalysis in its directory (this will most likely take a while!)
 
 5) pip install -r requirements in root
 
