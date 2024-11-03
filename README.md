@@ -11,6 +11,8 @@ To install, follow these steps:
 
 4) pip install -r requirements for pyAudioAnalysis in its directory (this will most likely take a while!)
 
-5) pip install -r requirements in root
+5) pip install -e . in the same directory
 
-6) install any additional libraries
+6) pip install -r requirements in root
+
+7) install any additional libraries
