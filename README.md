@@ -3,7 +3,7 @@ Llama 3.2 powered AI interview practice tool with openai-whisper speech-to-text 
 
 To install, follow these steps:
 
-1) Create virtual environment, make sure python version is compatible with pytorch
+1) Create virtual environment by running "python -m venv venv", make sure python version is compatible with pytorch.
 
 2) pip install pytorch according to system specs/availability
 
